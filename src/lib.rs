@@ -1,4 +1,6 @@
-use std::collections::HashSet;
+use md5::{Md5, Digest};
+use std::collections::{BinaryHeap, HashSet};
+
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Deleted {
@@ -56,10 +58,6 @@ impl Record {
         }
     }
 }
-
-
-
-use std::collections::BinaryHeap;
 
 // Convert a key to volume assignments
 fn key2volume(key: &[u8], volumes: &[String], replicas: usize) -> Vec<String> {
