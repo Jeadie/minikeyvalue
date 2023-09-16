@@ -1,5 +1,11 @@
 use md5::{Md5, Digest};
-use std::collections::{BinaryHeap, HashSet};
+use std::collections::HashSet;
+use std::error::Error;
+use reqwest::{Client, ClientBuilder};
+
+use base64;
+use std::cmp::Ordering;
+use std::time::Duration;
 
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -60,28 +66,116 @@ impl Record {
 }
 
 // Convert a key to volume assignments
-fn key2volume(key: &[u8], volumes: &[String], replicas: usize) -> Vec<String> {
-    let mut hasher = Md5::new();
-    hasher.update(key);
-    let result = hasher.finalize();
+fn key2volume(key: &[u8], volumes: &[String], count: usize, svcount: usize) -> Vec<String> {
+    let mut sortvols: Vec<SortVol> = Vec::new();
 
-    // Here, we'll sort the volumes based on the hash and select the required number of replicas.
-    // For simplicity, we're using a binary heap to get the top-n volumes.
-    let mut heap = BinaryHeap::new();
-    for volume in volumes {
-        let mut volume_hasher = Md5::new();
-        volume_hasher.update(volume.as_bytes());
-        let volume_hash = volume_hasher.finalize();
-        let combined_hash = format!("{:x}{:x}", result, volume_hash);
-        heap.push((combined_hash, volume));
+    for v in volumes.iter() {
+        let mut hasher = Md5::new();
+        hasher.update(key);
+        hasher.update(v.as_bytes());
+        let score = hasher.finalize().to_vec();
+        sortvols.push(SortVol {
+            score,
+            volume: v.clone(),
+        });
     }
-    
-    let mut selected_volumes = Vec::new();
-    for _ in 0..replicas {
-        if let Some((_, volume)) = heap.pop() {
-            selected_volumes.push(volume.to_string());
+
+    // Sort by score in descending order
+    sortvols.sort();
+
+    // Take the top 'count' volumes
+    let selected_vols: Vec<String> = sortvols.iter().take(count).map(|sv| {
+        let mut volume = sv.volume.clone();
+        if svcount > 1 {
+            let svhash = (sv.score[12] as u32) << 24
+                       + (sv.score[13] as u32) << 16
+                       + (sv.score[14] as u32) << 8
+                       + sv.score[15] as u32;
+            volume = format!("{}/sv{:02X}", sv.volume, svhash as usize % svcount);
+        }
+        volume
+    }).collect();
+
+    selected_vols
+}
+
+
+// Convert key to path
+fn key2path(key: &[u8]) -> String {
+    let mkey = Md5::digest(key);
+    let b64key = base64::encode(key);
+    format!("/{:02x}/{:02x}/{}", mkey[0], mkey[1], b64key)
+}
+
+// Structures and methods for sorting by score
+struct SortVol {
+    score: Vec<u8>,
+    volume: String,
+}
+
+impl Ord for SortVol {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.score.cmp(&self.score)
+    }
+}
+
+impl PartialOrd for SortVol {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for SortVol {
+    fn eq(&self, other: &Self) -> bool {
+        self.score == other.score
+    }
+}
+
+impl Eq for SortVol {}
+
+fn needs_rebalance(volumes: &[String], kvolumes: &[String]) -> bool {
+    if volumes.len() != kvolumes.len() {
+        return true;
+    }
+    for (v, kv) in volumes.iter().zip(kvolumes.iter()) {
+        if v != kv {
+            return true;
         }
     }
+    false
+}
 
-    selected_volumes
+async fn remote_delete(remote: &str) -> Result<(), Box<dyn Error>> {
+    let client = Client::new();
+    let resp = client.delete(remote).send().await?;
+    
+    match resp.status().as_u16() {
+        204 | 404 => Ok(()),
+        status => Err(format!("remote_delete: wrong status code {}", status).into())
+    }
+}
+
+async fn remote_put(remote: &str, body: Vec<u8>) -> Result<(), Box<dyn Error>> {
+    let client = Client::new();
+    let resp = client.put(remote).body(body).send().await?;
+    
+    match resp.status().as_u16() {
+        201 | 204 => Ok(()),
+        status => Err(format!("remote_put: wrong status code {}", status).into())
+    }
+}
+
+async fn remote_get(remote: &str) -> Result<String, Box<dyn Error>> {
+    let client = Client::new();
+    let resp = client.get(remote).send().await?;
+    if resp.status().as_u16() != 200 {
+        return Err(format!("remote_get: wrong status code {}", resp.status().as_u16()).into());
+    }
+    Ok(resp.text().await?)
+}
+
+async fn remote_head(remote: &str, timeout: Duration) -> Result<bool, Box<dyn Error>> {
+    let client = ClientBuilder::new().timeout(timeout).build()?;
+    let resp = client.head(remote).send().await?;
+    Ok(resp.status().as_u16() == 200)
 }
