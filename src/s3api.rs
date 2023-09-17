@@ -1,14 +1,15 @@
-use serde::Deserialize;
 use std::io::Read;
-use quick_xml::de::from_reader;
+use quick_xml::reader::Reader;
 
-#[derive(Debug, Deserialize)]
+use serde::{self, de::DeserializeOwned};
+
+#[derive(Debug, serde::Deserialize)]
 struct CompleteMultipartUpload {
     #[serde(rename = "Part")]
     parts: Vec<Part>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 struct Part {
     #[serde(rename = "PartNumber")]
     part_number: i32,
@@ -16,26 +17,26 @@ struct Part {
     e_tag: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 struct Delete {
     #[serde(rename = "Object")]
     objects: Vec<Object>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 struct Object {
     #[serde(rename = "Key")]
     key: String,
 }
 
-fn parse_xml<T: DeserializeOwned, R: Read>(reader: R) -> Result<T, quick_xml::DeError> {
-    from_reader(reader)
+fn parse_xml<T: DeserializeOwned, R: Read>(reader: R) -> Result<T, quick_xml::Error> {
+    Reader::from_reader(reader)
 }
 
-fn parse_complete_multipart_upload<R: Read>(reader: R) -> Result<CompleteMultipartUpload, quick_xml::DeError> {
+fn parse_complete_multipart_upload<R: Read>(reader: R) -> Result<CompleteMultipartUpload, quick_xml::Error> {
     parse_xml(reader)
 }
 
-fn parse_delete<R: Read>(reader: R) -> Result<Delete, quick_xml::DeError> {
+fn parse_delete<R: Read>(reader: R) -> Result<Delete, quick_xml::Error> {
     parse_xml(reader)
 }

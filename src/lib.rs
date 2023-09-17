@@ -9,21 +9,21 @@ use std::time::Duration;
 
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum Deleted {
+pub enum Deleted {
     No,
     Soft,
     Hard,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-struct Record {
+pub struct Record {
     rvolumes: HashSet<String>,
     deleted: Deleted,
     hash: String,
 }
 
 impl Record {
-    fn from_record(&self) -> String {
+    pub fn from_record(&self) -> String {
         let mut serialized = String::new();
         
         if self.deleted == Deleted::Soft {
@@ -40,7 +40,7 @@ impl Record {
         serialized
     }
 
-    fn to_record(s: &str) -> Record {
+    pub fn to_record(s: &str) -> Record {
         let mut s_remaining = s.to_string();
         let mut deleted = Deleted::No;
         let mut hash = String::new();
@@ -66,7 +66,7 @@ impl Record {
 }
 
 // Convert a key to volume assignments
-fn key2volume(key: &[u8], volumes: &[String], count: usize, svcount: usize) -> Vec<String> {
+pub fn key2volume(key: &[u8], volumes: &[String], count: usize, svcount: usize) -> Vec<String> {
     let mut sortvols: Vec<SortVol> = Vec::new();
 
     for v in volumes.iter() {
@@ -101,7 +101,7 @@ fn key2volume(key: &[u8], volumes: &[String], count: usize, svcount: usize) -> V
 
 
 // Convert key to path
-fn key2path(key: &[u8]) -> String {
+pub fn key2path(key: &[u8]) -> String {
     let mkey = Md5::digest(key);
     let b64key = base64::encode(key);
     format!("/{:02x}/{:02x}/{}", mkey[0], mkey[1], b64key)
@@ -133,7 +133,7 @@ impl PartialEq for SortVol {
 
 impl Eq for SortVol {}
 
-fn needs_rebalance(volumes: &[String], kvolumes: &[String]) -> bool {
+pub fn needs_rebalance(volumes: &[String], kvolumes: &[String]) -> bool {
     if volumes.len() != kvolumes.len() {
         return true;
     }
@@ -145,7 +145,7 @@ fn needs_rebalance(volumes: &[String], kvolumes: &[String]) -> bool {
     false
 }
 
-async fn remote_delete(remote: &str) -> Result<(), Box<dyn Error>> {
+pub async fn remote_delete(remote: &str) -> Result<(), Box<dyn Error>> {
     let client = Client::new();
     let resp = client.delete(remote).send().await?;
     
@@ -155,7 +155,7 @@ async fn remote_delete(remote: &str) -> Result<(), Box<dyn Error>> {
     }
 }
 
-async fn remote_put(remote: &str, body: Vec<u8>) -> Result<(), Box<dyn Error>> {
+pub async fn remote_put(remote: &str, body: Vec<u8>) -> Result<(), Box<dyn Error>> {
     let client = Client::new();
     let resp = client.put(remote).body(body).send().await?;
     
@@ -165,7 +165,7 @@ async fn remote_put(remote: &str, body: Vec<u8>) -> Result<(), Box<dyn Error>> {
     }
 }
 
-async fn remote_get(remote: &str) -> Result<String, Box<dyn Error>> {
+pub async fn remote_get(remote: &str) -> Result<String, Box<dyn Error>> {
     let client = Client::new();
     let resp = client.get(remote).send().await?;
     if resp.status().as_u16() != 200 {
@@ -174,7 +174,7 @@ async fn remote_get(remote: &str) -> Result<String, Box<dyn Error>> {
     Ok(resp.text().await?)
 }
 
-async fn remote_head(remote: &str, timeout: Duration) -> Result<bool, Box<dyn Error>> {
+pub async fn remote_head(remote: &str, timeout: Duration) -> Result<bool, Box<dyn Error>> {
     let client = ClientBuilder::new().timeout(timeout).build()?;
     let resp = client.head(remote).send().await?;
     Ok(resp.status().as_u16() == 200)

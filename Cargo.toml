@@ -12,6 +12,8 @@ structopt = "0.3"
 xml-rs = "0.8"
 leveldb = "0.8.6"
 md5 = { package = "md-5" , version = "0.10.5" }
+quick-xml = "0.30.0"
+serde = "1.0.188"
 
 
 [[bin]]
