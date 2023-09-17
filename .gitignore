@@ -1,3 +1,8 @@
 __pycache__
 .*.swp
 src/mkv
+
+
+# Added by cargo
+
+/target
