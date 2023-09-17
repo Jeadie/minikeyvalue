@@ -2,8 +2,8 @@ use crate::lib;
 use crate::app::App;
 use std::time::Duration;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::TryRecvError;
+
+
 
 #[derive(Clone)]
 struct RebalanceRequest {

@@ -34,13 +34,13 @@ enum Command {
 fn main() {
     let command = Command::from_args();
     match command {
-        Command::Server(app) => {
+        Command::Server(_app) => {
             // app.run_server();
         }
-        Command::Rebalance { db, volumes } => {
+        Command::Rebalance { db: _, volumes: _ } => {
             // 
         }
-        Command::Rebuild { db, volumes } => {
+        Command::Rebuild { db: _, volumes: _ } => {
             // Rebuild logic here
         }
     }

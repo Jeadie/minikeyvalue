@@ -1,4 +1,4 @@
-use leveldb::database::bytes;
+
 use structopt::StructOpt;
 use std::collections::HashSet;
 
@@ -70,7 +70,7 @@ impl App {
         rebalance::All(&self)
     }
 
-    pub fn put_record(&self, key: Vec<u8>, rec: Record) -> bool {
+    pub fn put_record(&self, _key: Vec<u8>, _rec: Record) -> bool {
         return true
     }
 }
