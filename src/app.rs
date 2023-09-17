@@ -1,7 +1,8 @@
+use leveldb::database::bytes;
 use structopt::StructOpt;
 use std::collections::HashSet;
 
-use crate::rebalance;
+use crate::{rebalance, lib::Record};
 
 fn parse_hashset(src: &str) -> Result<HashSet<String>, Box<dyn std::error::Error>> {
     Ok(src.split(',').map(|s| s.to_string()).collect())
@@ -28,11 +29,11 @@ pub struct App {
 
     /// Amount of replicas to make of the data
     #[structopt(long = "replicas", default_value = "3")]
-    replicas: usize,
+    pub replicas: usize,
 
     /// Amount of subvolumes, disks per machine
     #[structopt(long = "subvolumes", default_value = "10")]
-    subvolumes: usize,
+    pub subvolumes: usize,
 
     /// Force UNLINK before DELETE
     #[structopt(long = "protect")]
@@ -67,5 +68,9 @@ impl App {
 
     fn rebalance(&self) {
         rebalance::All(&self)
+    }
+
+    pub fn put_record(&self, key: Vec<u8>, rec: Record) -> bool {
+        return true
     }
 }

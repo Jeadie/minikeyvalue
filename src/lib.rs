@@ -17,10 +17,12 @@ pub enum Deleted {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Record {
-    rvolumes: HashSet<String>,
-    deleted: Deleted,
-    hash: String,
+    pub rvolumes: HashSet<String>,
+    pub deleted: Deleted,
+    pub hash: String,
 }
+
+
 
 impl Record {
     pub fn from_record(&self) -> String {

@@ -1,6 +1,8 @@
 use crate::lib;
 use crate::app::App;
 use std::time::Duration;
+use std::collections::HashSet;
+
 
 #[derive(Clone)]
 struct RebalanceRequest {
@@ -9,14 +11,14 @@ struct RebalanceRequest {
     kvolumes: Vec<String>,
 }
 
-fn rebalance(app: &App, req: RebalanceRequest) -> bool {
+async fn rebalance(app: &App, req: RebalanceRequest) -> bool {
     let kp = lib::key2path(&req.key);
     
     // find the volumes that are real
     let mut rvolumes = Vec::new();
     for rv in &req.volumes {
         let remote_test = format!("http://{}{}", rv, kp);
-        match lib::remote_head(&remote_test, Duration::from_secs(60)) {
+        match lib::remote_head(&remote_test, Duration::from_secs(60)).await {
             Ok(found) => {
                 if found {
                     rvolumes.push(rv.clone());
@@ -44,7 +46,7 @@ fn rebalance(app: &App, req: RebalanceRequest) -> bool {
     let mut ss = String::new();
     for v in &rvolumes {
         let remote_from = format!("http://{}{}", v, kp);
-        match lib::remote_get(&remote_from) {
+        match lib::remote_get(&remote_from).await {
             Ok(data) => {
                 ss = data;
                 break;
@@ -70,7 +72,7 @@ fn rebalance(app: &App, req: RebalanceRequest) -> bool {
         }
         if needs_write {
             let remote_to = format!("http://{}{}", v, kp);
-            if let Err(err) = lib::remote_put(&remote_to, ss.as_bytes().to_vec()) {
+            if let Err(err) = lib::remote_put(&remote_to, ss.as_bytes().to_vec()).await {
                 println!("rebalance put error {:?} {}", err, remote_to);
                 rebalance_error = true;
             }
@@ -81,8 +83,8 @@ fn rebalance(app: &App, req: RebalanceRequest) -> bool {
     }
 
     // update db
-    if !app.put_record(&req.key, lib::Record {
-        rvolumes: req.kvolumes.clone(),
+    if !app.put_record(req.key, lib::Record {
+        rvolumes: HashSet::from_iter(req.kvolumes.clone()),
         deleted: lib::Deleted::No,
         hash: String::new(),
     }) {
@@ -102,7 +104,7 @@ fn rebalance(app: &App, req: RebalanceRequest) -> bool {
         }
         if needs_delete {
             let remote_del = format!("http://{}{}", v2, kp);
-            if let Err(err) = lib::remote_delete(&remote_del) {
+            if let Err(err) = lib::remote_delete(&remote_del).await {
                 println!("rebalance delete error {:?} {}", err, remote_del);
                 delete_error = true;
             }
@@ -113,7 +115,7 @@ fn rebalance(app: &App, req: RebalanceRequest) -> bool {
 
 pub fn All(app: &App) {
     let volumes = app.volumes.clone();
-    let keys = app.db.keys();
+    let keys = []; // TODO: add db // app.db.keys();
     let (tx, rx) = std::sync::mpsc::channel();
 
     // Spawn workers
@@ -131,9 +133,9 @@ pub fn All(app: &App) {
 
     // Send tasks to workers
     for key in keys {
-        let kvolumes = lib::key2volume(key, app.volumes, app.replicas, app.subvolumes);
+        let kvolumes = lib::key2volume(key, &app.volumes, app.replicas, app.subvolumes);
         let req = RebalanceRequest {
-            key,
+            key: key.to_vec(),
             volumes: volumes.clone(),
             kvolumes: kvolumes.clone(),
         };
