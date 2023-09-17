@@ -2,7 +2,8 @@ use crate::lib;
 use crate::app::App;
 use std::time::Duration;
 use std::collections::HashSet;
-
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::TryRecvError;
 
 #[derive(Clone)]
 struct RebalanceRequest {
@@ -117,6 +118,7 @@ pub fn All(app: &App) {
     let volumes = app.volumes.clone();
     let keys = []; // TODO: add db // app.db.keys();
     let (tx, rx) = std::sync::mpsc::channel();
+    let rx = Arc::new(Mutex::new(rx));
 
     // Spawn workers
     const NUM_WORKERS: usize = 10;
@@ -124,8 +126,17 @@ pub fn All(app: &App) {
     for _ in 0..NUM_WORKERS {
         let rx = rx.clone();
         let handle = std::thread::spawn(move || {
-            for req in rx {
-                rebalance(&app, req);
+            loop {
+                let maybe_req = {
+                    let r = rx.lock().unwrap();
+                    r.try_recv()
+                };
+
+                match maybe_req {
+                    Ok(req) => rebalance(&app, req),
+                    Err(TryRecvError::Disconnected) => break,
+                    Err(TryRecvError::Empty) => continue,
+                };
             }
         });
         handles.push(handle);
