@@ -117,32 +117,8 @@ async fn rebalance(app: &App, req: RebalanceRequest) -> bool {
 pub fn All(app: &App) {
     let volumes = app.volumes.clone();
     let keys = []; // TODO: add db // app.db.keys();
-    let (tx, rx) = std::sync::mpsc::channel();
-    let rx = Arc::new(Mutex::new(rx));
 
-    // Spawn workers
-    const NUM_WORKERS: usize = 10;
-    let mut handles = vec![];
-    for _ in 0..NUM_WORKERS {
-        let rx = rx.clone();
-        let handle = std::thread::spawn(move || {
-            loop {
-                let maybe_req = {
-                    let r = rx.lock().unwrap();
-                    r.try_recv()
-                };
-
-                match maybe_req {
-                    Ok(req) => rebalance(&app, req),
-                    Err(TryRecvError::Disconnected) => break,
-                    Err(TryRecvError::Empty) => continue,
-                };
-            }
-        });
-        handles.push(handle);
-    }
-
-    // Send tasks to workers
+    // Process each key synchronously without spawning threads
     for key in keys {
         let kvolumes = lib::key2volume(key, &app.volumes, app.replicas, app.subvolumes);
         let req = RebalanceRequest {
@@ -150,12 +126,53 @@ pub fn All(app: &App) {
             volumes: volumes.clone(),
             kvolumes: kvolumes.clone(),
         };
-        tx.send(req).unwrap();
-    }
-
-    // Close the channel and wait for all workers to finish
-    drop(tx);
-    for handle in handles {
-        handle.join().unwrap();
+        rebalance(app, req);
     }
 }
+
+
+// pub fn All(app: &App) {
+//     let app = Arc::new(app);
+//     let volumes = app.volumes.clone();
+//     let keys = []; // TODO: add db // app.db.keys();
+//     let (tx, rx) = std::sync::mpsc::channel();
+//     let rx = Arc::new(Mutex::new(rx));
+
+//     // Spawn workers
+//     const NUM_WORKERS: usize = 10;
+//     let mut handles = vec![];
+//     for _ in 0..NUM_WORKERS {
+//         let app = app.clone();
+//         let rx = rx.clone();
+//         let handle = std::thread::spawn(move || loop {
+//             let maybe_req = {
+//                 let r = rx.lock().unwrap();
+//                 r.try_recv()
+//             };
+
+//             match maybe_req {
+//                 Ok(req) => rebalance(&app, req),
+//                 Err(TryRecvError::Disconnected) => break,
+//                 Err(TryRecvError::Empty) => continue,
+//             };
+//         });
+//         handles.push(handle);
+//     }
+
+//     // Send tasks to workers
+//     for key in keys {
+//         let kvolumes = lib::key2volume(key, &app.volumes, app.replicas, app.subvolumes);
+//         let req = RebalanceRequest {
+//             key: key.to_vec(),
+//             volumes: volumes.clone(),
+//             kvolumes: kvolumes.clone(),
+//         };
+//         tx.send(req).unwrap();
+//     }
+
+//     // Close the channel and wait for all workers to finish
+//     drop(tx);
+//     for handle in handles {
+//         handle.join().unwrap();
+//     }
+// }
